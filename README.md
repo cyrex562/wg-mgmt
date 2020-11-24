@@ -95,3 +95,9 @@ optional arguments:
   --auto-add            Executes 'wg set [WG_INTERFACE] [PUBKEY] allowd-ips
                         [ALLOWED_IPS]' with the generated data
 ```
+
+## TODO List
+
+- [ ] support adding ufw/iptables rules for listen port on server
+- [ ] support ipv6 addresses and endpoints
+- [ ] support FQDN endpoints
