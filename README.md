@@ -62,38 +62,53 @@ AllowedIPs = 0.0.0.0/0,::/0
 
 
 ```sh
-$ python3 wg_mgmt.py -h
-usage: wg_mgmt.py [-h] (--subnet SUBNET | --address ADDRESS) --endpoint
-                  ENDPOINT [--privkey PRIVKEY] [--dns DNS]
-                  [--keep-alive KEEP_ALIVE] [--mtu MTU]
-                  [--allowed-ips ALLOWED_IPS] [--wg-binary WG_BINARY]
-                  [--qrencode-binary QRENCODE_BINARY]
-                  [--wg-interface WG_INTERFACE] [--qr] [--auto-add]
+usage: wgm.py [-h] --config-file CONFIG_FILE [--wg-path /PATH/TO/WG] [--qrencode-path QRENCODE_PATH] --interface IFC_NAME [--quiet] [--verbose] [--server-listen-port SERVER_LISTEN_PORT] [--server-addresses [X.X.X.X [X.X.X.X ...]]] [--server-allowed-ips [X.X.X.X/Y [X.X.X.X/Y ...]]]
+              [--server-networks [X.X.X.Y/Z [X.X.X.Y/Z ...]]] [--server-description SERVER_DESCRIPTION] [--server-private-key SERVER_PRIVATE_KEY] [--server-keepalive SECS] [--peer-listen-port PEER_LISTEN_PORT] [--peer-adresses [X.X.X.X [X.X.X.X ...]]] [--peer-networks [X.X.X.Y/Z [X.X.X.Y/Z ...]]]
+              [--peer-allowed_ips [X.X.X.X/Y [X.X.X.X/Y ...]]] [--peer-keepalive SECS] [--peer-public-key PEER_PUBLIC_KEY] [--peer-description PEER_DESCRITPION]
+              COMMAND
+
+positional arguments:
+  COMMAND
 
 optional arguments:
   -h, --help            show this help message and exit
-  --subnet SUBNET       Automatically generates the value of
-                        [Interface][Address] based on already affected IP
-                        addresses
-  --address ADDRESS     [Interface][Address] value
-  --endpoint ENDPOINT   [Peer][Endpoint] value
-  --privkey PRIVKEY     [Interface][PrivateKey] value
-  --dns DNS             [Interface][DNS] value
-  --keep-alive KEEP_ALIVE
-                        [Interface][PersistentKeepalive] value
-  --mtu MTU             [Interface][MTU] value
-  --allowed-ips ALLOWED_IPS
-                        [Peer][AllowedIPs] value
-  --wg-binary WG_BINARY
-                        Path to wg binary (default = wg)
-  --qrencode-binary QRENCODE_BINARY
-                        Path to qrencode binary (default = qrencode)
-  --wg-interface WG_INTERFACE
-                        WireGuard interface (default = wg0)
-  --qr                  Outputs the configuration as a QRcode instead of
-                        stdout
-  --auto-add            Executes 'wg set [WG_INTERFACE] [PUBKEY] allowd-ips
-                        [ALLOWED_IPS]' with the generated data
+  --config-file CONFIG_FILE
+                        (required) config file path.
+  --wg-path /PATH/TO/WG
+                        (optional) wg binary path; default: wg
+  --qrencode-path QRENCODE_PATH
+                        (optional) qrencode path; default=qrencode
+  --interface IFC_NAME  name of the wireguard interface
+  --quiet               output only warning and error messages
+  --verbose             output debug-level messages
+  --server-listen-port SERVER_LISTEN_PORT
+                        (optional) server listen port; default: 51820
+  --server-addresses [X.X.X.X [X.X.X.X ...]]
+                        (required) comma-separated list of IPv4 addresses
+  --server-allowed-ips [X.X.X.X/Y [X.X.X.X/Y ...]]
+                        (required) comma-separated list of allowed IPs/Networks
+  --server-networks [X.X.X.Y/Z [X.X.X.Y/Z ...]]
+                        (required) comma-separated list of server networks
+  --server-description SERVER_DESCRIPTION
+                        (optional) server description
+  --server-private-key SERVER_PRIVATE_KEY
+                        (optional) server's private key
+  --server-keepalive SECS
+                        (optional) servers' keepalive interval; default=25
+  --peer-listen-port PEER_LISTEN_PORT
+                        (optional) peer listen port; default=51820
+  --peer-adresses [X.X.X.X [X.X.X.X ...]]
+                        (optional) comma-separated list of peer IP addresses
+  --peer-networks [X.X.X.Y/Z [X.X.X.Y/Z ...]]
+                        (optional) comma-separated list of peer networks
+  --peer-allowed_ips [X.X.X.X/Y [X.X.X.X/Y ...]]
+                        (optional) comma-separated list of peer allowed_ips
+  --peer-keepalive SECS
+                        (optional) peer keep-alive interval; default=25
+  --peer-public-key PEER_PUBLIC_KEY
+                        (required) peer public key
+  --peer-description PEER_DESCRITPION
+                        (optional) peer description
 ```
 
 ## TODO List
@@ -101,3 +116,15 @@ optional arguments:
 - [ ] support adding ufw/iptables rules for listen port on server
 - [ ] support ipv6 addresses and endpoints
 - [ ] support FQDN endpoints
+
+
+
+create an interface
+```
+python3 wgm.py create-interface --config-file wg_config.yaml --interface test0 --verbose --server-addresses 192.168.255.1 --server-allowed-ips 192.168.255.0/24 --server-networks 192.168.255.0/24`
+```
+
+delete an interface
+```
+python3 wgm.py delete-interface --config-file wg_config.yaml --interface test0
+```

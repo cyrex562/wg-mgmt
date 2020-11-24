@@ -9,6 +9,8 @@ from enum import Enum
 import configparser
 from typing import List, Dict, Set
 import logging
+import yaml
+from dataclasses import dataclass
 
 DFLT_MTU = 1500
 DFLT_KEEPALIVE = 25
@@ -27,12 +29,180 @@ LOG.addHandler(stdout_handler)
 LOG.setLevel(logging.INFO)
 
 class Command(Enum):
-    ADD = "add peer"
-    CREATE = "create interface"
-    SAVE = "save interface"
-    REM_PEER = "remove peer"
-    REM_IFC = "remove interface"
-    QR = "generate qr code"
+    ADD_PEER = "add-peer"
+    CREATE_INTERFACE = "create-interface"
+    SAVE_INTERFACE = "save-interface"
+    DELETE_PEER = "delete-peer"
+    DELETE_INTERFACE = "delete-interface"
+    GENERATE_QR_CODE = "generate-qr-code"
+    INVALID = "invalid"
+
+    def __repr__(self) -> str:
+        return str(self.value)
+    
+    def __str__(self) -> str:
+        return str(self.value)
+
+@dataclass
+class AppContext:
+    interface_name: str
+    wg_path: str
+    config_file_path: str
+    qrencode_path: str
+    quiet: bool
+    verbose: bool
+    command: str
+    server_private_key: str
+    server_listen_port: int
+    server_addresses: List[str]
+    server_networks: List[str]
+    server_endpoint: str
+    server_allowed_ips: List[str]
+    server_keepalive: int
+    server_description: str
+    peer_endpoint: str
+    peer_allowed_ips: List[str]
+    peer_keepalive: int
+    peer_public_key: str
+    peer_listen_port: int
+    peer_private_key: str
+    peer_networks: List[str]
+    peer_description: str
+
+class Peer:
+    def __init__(
+            public_key: str = "",
+            private_key: str = "",
+            peer_addresses: List[str] = None,
+            peer_networks: List[str] = None,
+            server_keepalive: int = 0,
+            peer_keepalive: int = 0,
+            server_allowed_ips: List[str] = None,
+            peer_allowed_ips: List[str] = None,
+            peer_description: str = "",
+            server_endpoint: str = "",
+            peer_endpoint: str = "",
+            peer_listen_port: int = 0
+    ):
+        self.public_key = public_key
+        self.private_key = private_key
+        if peer_addresses is None:
+            self.peer_addresses = []
+        else:
+            self.peer_addresses = peer_addresses
+        if peer_networks is None:
+            self.peer_networks = []
+        else:
+            self.peer_networks = peer_networks
+        self.server_keepalive = server_keepalive
+        self.peer_keepalive = peer_keepalive
+        if server_allowed_ips is None:
+            self.server_allowed_ips = []
+        else:
+            self.server_allowed_ips = server_allowed_ips
+        if peer_allowed_ips is None:
+            self.peer_allowed_ips = []
+        else:
+            self.peer_allowed_ips = peer_allowed_ips
+        self.peer_description = peer_description
+        self.server_endpoint = server_endpoint
+        self.peer_endpoint = peer_endpoint
+        self.peer_listen_port = peer_listen_port
+
+
+class Interface:
+    def __init__(
+            self, name: str = "", 
+            description: str = "", 
+            addresses: List[str] = None, 
+            networks: List[str] = None, 
+            private_key: str = "", 
+            listen_port: int = 0, 
+            peers: List[Peer] = None):
+        self.name = name
+        self.description = description
+        if addresses is None:
+            self.addresses = []
+        else:
+            self.addresses = addresses
+        if networks is None:
+            self.networks = []
+        else:
+            self.networks = networks
+        self.private_key = private_key
+        self.listen_port = listen_port
+        if peers is None:
+            self.peers = []
+        else:
+            self.peers = peers
+
+
+
+class Config:
+    def __init__(self, 
+            interfaces: List[Interface] = None):
+        if interfaces is not None:
+            self.interfaces = interfaces
+        else:
+            self.interfaces = []
+
+def config_from_dict(in_config: Dict) -> Config:
+    out_config = Config()
+    for interface in in_config["interfaces"]:
+        out_interface = Interface(
+            name = interface["name"],
+            description = interface["description"],
+            addresses = interface["addresses"],
+            private_key = interface["private_key"],
+            listen_port = interface["listen_port"]
+        )
+        for peer in interface["peers"]:
+            out_peer = Peer(
+                public_key =  peer["public_key"],
+                private_key = peer["private_key"],
+                peer_addresses = peer["peer_addresses"],
+                peer_networks = peer["peer_networks"],
+                server_keepalive = peer["server_keepalive"],
+                peer_keepalive = peer["peer_keepalive"],
+                server_allowed_ips = peer["server_allowed_ips"],
+                peer_allowed_ips = peer["peer_allowed_ips"],
+                peer_description = peer["peer_description"],
+                server_endpoint = peer["server_endpoint"],
+                peer_endpoint = peer["peer_endpoint"],
+                peer_listen_port = peer["peer_listen_port"]
+            )
+            out_interface.peers.append(out_peer)
+        out_config.interfaces.append(out_interface)
+    return out_config
+
+def dict_from_config(in_config: Config) -> Dict:
+    out_config = {"interfaces": []}
+    for interface in in_config.interfaces:
+        out_interface = {
+            "name": interface.name,
+            "description": interface.description,
+            "addresses": interface.addresses,
+            "private_key": interface.private_key,
+            "listen_port": interface.listen_port,
+            "peers": []}
+        for peer in interface.peers:
+            out_peer = {
+                "public_key": peer.public_key,
+                "private_key": peer.private_key,
+                "peer_addresses": peer.peer_addresses,
+                "peer_networks": peer.peer_networks,
+                "server_keepalive": peer.server_keepalive,
+                "peer_keepalive": peer.peer_keepalive,
+                "server_allowed_ips": peer.server_keepalive,
+                "peer_allowed_ips": peer.peer_allowed_ips,
+                "peer_description": peer.peer_description,
+                "peer_endpoint": peer.peer_endpoint,
+                "server_endpoint": peer.server_endpoint,
+                "peer_listen_port": peer.peer_listen_port
+            }
+            out_interface["peers"].append(out_peer)
+        out_config["interfaces"].append(out_interface)
+    return out_config
 
 
 def get_server_addresses(ifc: str) -> List[ipaddress.IPv4Address]:
@@ -101,64 +271,20 @@ def get_assigned_addresses(opts: Namespace, ) -> Dict[ipaddress.IPv4Network, Lis
     LOG.debug("peer addresses=%s", address_map)
     return address_map
 
-def get_available_ips(opts: Namespace) -> List[ipaddress.IPv4Address]:
+def get_available_ips(opts: Namespace) -> Dict[ipaddress.IPv4Network, ipaddress.IPv4Address]:
     LOG.debug("getting available addresses")
     addr_map = get_assigned_addresses(opts)
 
-    available_addrs = []
+    available_addrs = {}
     for net in addr_map.keys():
         addr_list = addr_map[net]
         for host in net.hosts():
             if host not in addr_list:
-                available_addrs.append(host)
+                available_addrs[net] = host
                 break
 
     LOG.debug("available addresses=%s", available_addrs)
     return available_addrs
-    
-        
-
-# def first_available_ip_from_subnet(args: object):
-#     result = []
-#     host_list = {}
-#     taken_host_list = {}
-
-#     subnets = list(map(lambda x: x.strip(), args.subnet.split(',')))
-#     for subnet in subnets:
-#         network = ipaddress.ip_network(subnet, strict=True)
-#         if network.version == 4 or network.version == 6:
-#             host_list[network.version] = network
-
-#     raw_command = subprocess.check_output(
-#         [args.wg_binary, 'show', args.wg_interface, 'allowed-ips'], stderr=sys.stdout)
-
-#     raw_lines = raw_command.decode('utf-8').split('\n')
-#     raw_lines = [x.split('\t')[1].split(' ') for x in raw_lines if x]
-#     for line in raw_lines:
-#         for ip in line:
-#             parsed_ip = ipaddress.ip_network(ip, strict=True)[0]
-#             if not parsed_ip.version in taken_host_list:
-#                 taken_host_list[parsed_ip.version] = []
-
-#             taken_host_list[parsed_ip.version].append(parsed_ip)
-
-#     if 4 in host_list:
-#         # Grab the first free ivp4 address
-#         for ip in host_list[4].hosts():
-#             if ip != host_list[4][0] and ip != host_list[4][1]:
-#                 if 4 not in taken_host_list or ip not in taken_host_list[4]:
-#                     result.append(str(ipaddress.ip_network(ip, strict=True)))
-#                     break
-
-#     if 6 in host_list:
-#         # Grab the first free ivp6 address
-#         for ip in host_list[6].hosts():
-#             if ip != host_list[6][0] and ip != host_list[6][1]:
-#                 if 6 not in taken_host_list or ip not in taken_host_list[6]:
-#                     result.append(str(ipaddress.ip_network(ip, strict=True)))
-#                     break
-
-#     return ", ".join(result)
 
 def get_public_key(opts: Namespace, private_key: str) -> str:
     LOG.debug("getting public key")
@@ -189,79 +315,187 @@ def get_server_public_key(opts: Namespace) -> str:
     return public_key
 
 
-def gen_private_key(opts: Namespace) -> str:
+def gen_private_key(ctx: AppContext) -> str:
     """
 
     """
     LOG.debug("generating private key")
-    if opts.private_key != "":
-        return opts.private_key
-    private_key_raw = subprocess.check_output([opts.wg_path, "genkey"])
+    if ctx.server_private_key != "":
+        return ctx.server_private_key
+    private_key_raw = subprocess.check_output([ctx.wg_path, "genkey"])
     private_key = private_key_raw.decode("utf-8").strip()
     LOG.debug("private key=%s...", private_key[1:5])
     return private_key
 
 
-def parse_args() -> Namespace:
+def parse_args() -> AppContext:
     """
     """
     p = argparse.ArgumentParser()
-
-    p.add_argument("--wg-path", help="specify the path of the wg binary. If not specified, than a default will be used", default=DFLT_WG_BINARY, dest="wg_path")
-    
-    p.add_argument("--qrencode-path", help="specify the path of the qrencode binary. If not specified, then a default will be used.", default=DFLT_QRENCODE)
-
-    p.add_argument("-n", "--ifc-name", help="name of the wireguard interface", metavar="IFC_NAME", required=True, dest="interface_name")
-
-    p.add_argument("-q", "--quiet", help="turn log level down to warnings and errors only", action="store_true")
-    p.add_argument("-v", "--verbose", help="turn log level up to include debug messages", action="store_true")
-
-    sp = p.add_subparsers(title="command", dest="command")
-
-    # CREATE
-    # arguments: interface name (r), private key (o), listen port (o), interface address/mask (r),  
-    cp = sp.add_parser(name="create-ifc")
-
-    cp.add_argument("-k", "--private-key", help="private key to use for the interface. If not specified, one will be generated", default="", dest="private_key")
-
-    cp.add_argument("-p", "--listen-port", help="port for the interface to listen on. if not specified, default will be used", default=DFLT_PORT, dest="listen_port")
-
-    cp.add_argument("-a", "--addresses", help="address for the interface in CIDR form", metavar="A.B.C.D/EF", required=True, nargs="*", default=[], dest="addresses")
-    
-    # DEL IFC
-    # arguments: interface name (r)
-    dip = sp.add_parser(name="del-ifc")
-
-    # ADD PEER
-    # arguments: interface name (r), peer private key (o), peer listen port (o), peer endpoint (o), allowed-ips (o), peer address/mask (o), keepalive interval (o)
-    ap = sp.add_parser(name="add-peer")
-
-    ap.add_argument("--private-key", help="private key for the peer. If not specified, one will be generated", default="")
-
-    ap.add_argument("--listen-port", help="port for peer to listen on", default=DFLT_PORT, type=int)
-
-    ap.add_argument("--peer-endpoint", help="endpoint address for the peer. If not specified, will not be added", default="", dest="peer_endpoint")
-
-    ap.add_argument("--server-endpoint", help="endpoint address for the server", default="", dest="server_endpoint", required=True)
-
-    ap.add_argument("-w", "--allowed-ips", nargs="*", help="list of allowed ips/networks. If not specified, default will be used", default=["0.0.0.0/0"])
-
-    ap.add_argument("-a", "--addresses", help="address/netmask to use for peer. If not specified, one will be chosen based on the server's configuration", default=[], nargs="*")
-
-    ap.add_argument("-t", "--keepalive", help="peer keepalive interval", default=DFLT_KEEPALIVE, type=int, metavar="SECS", dest="keepalive")
-
-    # DEL PEER
-    # arguments: interface name (r), peer public key (o)
-    dp = sp.add_parser(name="del-peer")
-
-    dp.add_argument("-k", "--public-key", required=True, help="the public key of the peer to remove", dest="public_key")
-
-    # SAVE IFC
-    # arguments: interface name (r)
-    si = sp.add_parser(name="save-ifc")
+    p.add_argument("command", metavar="COMMAND", type=Command, choices=list(Command))
+    p.add_argument(
+        "--config-file", 
+        required=True, 
+        help="(required) config file path.",
+        dest="config_file")
+    p.add_argument(
+        "--wg-path", 
+        help=f"(optional) wg binary path; default: {DFLT_WG_BINARY}", 
+        default=DFLT_WG_BINARY, 
+        dest="wg_path",
+        metavar="/PATH/TO/WG")
+    p.add_argument(
+        "--qrencode-path", 
+        help=f"(optional) qrencode path; default={DFLT_QRENCODE}", default=DFLT_QRENCODE)
+    p.add_argument(
+        "--interface", 
+        help="name of the wireguard interface", 
+        metavar="IFC_NAME", 
+        required=True, 
+        dest="interface_name")
+    p.add_argument(
+        "--quiet", 
+        help="output only warning and error messages", 
+        action="store_true")
+    p.add_argument(
+        "--verbose", 
+        help="output debug-level messages", 
+        action="store_true")
+    p.add_argument(
+        "--server-listen-port", 
+        help=f"(optional) server listen port; default: {DFLT_PORT}", 
+        default=DFLT_PORT, 
+        dest="server_listen_port")
+    p.add_argument(
+        "--server-addresses", 
+        dest="server_addresses", 
+        nargs="*", 
+        metavar="X.X.X.X",
+        help="(required) comma-separated list of IPv4 addresses",
+        default=[])
+    p.add_argument(
+        "--server-allowed-ips", 
+        dest="server_allowed_ips", 
+        nargs="*", 
+        metavar="X.X.X.X/Y",
+        help="(required) comma-separated list of allowed IPs/Networks",
+        default=[])
+    p.add_argument(
+        "--server-networks", 
+        dest="server_networks", 
+        nargs="*", 
+        metavar="X.X.X.Y/Z",
+        help="(required) comma-separated list of server networks",
+        default=[])
+    p.add_argument(
+        "--server-description", 
+        dest="server_description",
+        help="(optional) server description",
+        default="")
+    p.add_argument(
+        "--server-private-key",
+        dest="server_private_key",
+        help="(optional) server's private key",
+        default="")
+    p.add_argument(
+        "--server-keepalive", 
+        dest="server_keepalive",
+        help=f"(optional) servers' keepalive interval; default={DFLT_KEEPALIVE}",
+        metavar="SECS",
+        type=int,
+        default=DFLT_KEEPALIVE)
+    p.add_argument(
+        "--peer-listen-port", 
+        dest="peer_listen_port",
+        default=DFLT_PORT,
+        type=int,
+        help=f"(optional) peer listen port; default={DFLT_PORT}")
+    p.add_argument(
+        "--peer-adresses", 
+        dest="peer_addresses", 
+        nargs="*",
+        metavar="X.X.X.X",
+        help="(optional) comma-separated list of peer IP addresses",
+        default=[])
+    p.add_argument(
+        "--peer-networks", 
+        dest="peer_networks", 
+        nargs="*",
+        metavar="X.X.X.Y/Z",
+        help="(optional) comma-separated list of peer networks",
+        default=[])
+    p.add_argument(
+        "--peer-allowed_ips", 
+        dest="peer_allowed_ips", 
+        nargs="*",
+        default=[],
+        metavar="X.X.X.X/Y",
+        help="(optional) comma-separated list of peer allowed_ips")
+    p.add_argument(
+        "--peer-keepalive", 
+        dest="peer_keepalive",
+        metavar="SECS",
+        default=DFLT_KEEPALIVE,
+        type=int,
+        help=f"(optional) peer keep-alive interval; default={DFLT_KEEPALIVE}")
+    p.add_argument(
+        "--peer-public-key", 
+        dest="peer_public_key",
+        help="(required) peer public key",
+        default=[])
+    p.add_argument(
+        "--peer-private-key",
+        dest="peer_private_key",
+        metavar="PRVIATE_KEY",
+        default="",
+        help="(optional) peer private key"
+    )
+    p.add_argument(
+        "--peer-description", 
+        dest="peer_description",
+        help="(optional) peer description",
+        default="")
+    p.add_argument(
+        "--server-endpoint",
+        dest="server_endpoint",
+        help="(required) server endpoint",
+        metavar="X.X.X.X:Y",
+        default = ""
+    )
+    p.add_argument(
+        "--peer-endpoint",
+        dest="peer_endpoint",
+        help="(optional) peer endpoint",
+        metavar="X.X.X.X:Y",
+        default = ""
+    )
 
     args = p.parse_args()
-    return args
+    ctx = AppContext(
+        interface_name=args.interface_name,
+        wg_path=args.wg_path,
+        config_file_path=args.config_file,
+        qrencode_path=args.qrencode_path,
+        quiet=args.quiet,
+        verbose=args.verbose,
+        command=args.command,
+        server_private_key=args.server_private_key,
+        server_listen_port=args.server_listen_port,
+        server_addresses=args.server_addresses,
+        server_networks=args.server_networks,
+        server_keepalive=args.server_keepalive,
+        server_description=args.server_description,
+        server_allowed_ips=args.server_allowed_ips,
+        server_endpoint=args.server_endpoint,
+        peer_endpoint=args.peer_endpoint,
+        peer_allowed_ips=args.peer_allowed_ips,
+        peer_keepalive=args.peer_keepalive,
+        peer_public_key=args.peer_public_key,
+        peer_listen_port=args.peer_listen_port,
+        peer_private_key=args.peer_private_key,
+        peer_networks=args.peer_networks,
+        peer_description=args.peer_description)
+    return ctx
 
 def generate_qrcode(opts: Namespace, config: str):
     """
@@ -297,78 +531,112 @@ def delete_private_key_file(ifc: str):
     ifc_key_path = f"/etc/wireguard/{ifc}.key"
     os.remove(ifc_key_path)
 
-def create_interface(opts: Namespace):
+def create_interface(ctx: AppContext, config: Config) -> Config:
     """
 
     """
-    ifc_config_path = f"/etc/wireguard/{opts.interface_name}.conf"
+    ifc_config_path = f"/etc/wireguard/{ctx.interface_name}.conf"
     if os.path.exists(ifc_config_path):
         raise ValueError(f"config file at path {ifc_config_path} already exists")
     
-    ifc_key_path = f"/etc/wireguard/{opts.interface_name}.key"
+    curr_interfaces = config.interfaces
+    for interface in curr_interfaces:
+        if interface.name == ctx.interface_name:
+            raise ValueError(f"interface \"{ctx.interface_name}\" already exists in config file")
 
-    private_key = gen_private_key(opts)
+    new_ifc = Interface(name = ctx.interface_name,
+            private_key=gen_private_key(ctx))
 
-    addresses = f"{opts.addresses[0]}"
-    for ad in opts.addresses[1:]:
-        addresses += f", {ad}"
+    # private key
+    ifc_key_path = f"/etc/wireguard/{new_ifc.name}.key"
 
+    # addresses
+    if len(ctx.server_addresses) == 0:
+        raise ValueError("no server addresses specified")
+    addresses_config_field = ""
+    count = 0
+    for addr in ctx.server_addresses:
+        if count > 0:
+            addresses_config_field += ", "
+        addresses_config_field += addr
+        new_ifc.addresses.append(addr)
+        count += 1
+
+    # listen port
+    new_ifc.listen_port = ctx.server_listen_port
+
+    # template
     template = f"""
 [Interface]
-PrivateKey = {private_key}
-ListenPort = {opts.listen_port}
-Address = {addresses}
+PrivateKey = {new_ifc.private_key}
+ListenPort = {new_ifc.listen_port}
+Address = {addresses_config_field}
     """
 
     with open(ifc_config_path, "w") as fd:
         fd.write(template)
     
     with open(ifc_key_path, "w") as fd:
-        fd.write(private_key)
+        fd.write(new_ifc.private_key)
         
-    enable_wg_quick(opts.interface_name)
+    enable_wg_quick(new_ifc.name)
 
-    start_wg_quick(opts.interface_name)
+    start_wg_quick(new_ifc.name)
+
+    config.interfaces.append(new_ifc)
+
+    return config
 
 
-def delete_interface(opts: Namespace):
+def delete_interface(ctx: AppContext, config: Config) -> Config:
     # stop the service
-    stop_wg_quick(opts.interface_name)
+    stop_wg_quick(ctx.interface_name)
 
     # disable the service
-    disable_wg_quick(opts.interface_name)
+    disable_wg_quick(ctx.interface_name)
 
     # delete the link
     # delete_link(opts.interface_name)
 
     # delete the config file
-    delete_config_file(opts.interface_name)
+    delete_config_file(ctx.interface_name)
 
     # delete the key
-    delete_private_key_file(opts.interface_name)
+    delete_private_key_file(ctx.interface_name)
+
+    # remove the element from the config object
+    for i in range(0, len(config.interfaces)):
+        if config.interfaces[i].name == ctx.interface_name:
+            config.interfaces.pop(i)
+            break
+
+    return config
 
 
 def gen_peer_addresses(opts: Namespace) -> str:
     out: str = ""
+    if len(opts.addresses) > 0:
+        count = 0
+        for addr in opts.addresses:
+            if count > 0:
+                out += ", "
+            out += f"{addr}"
+            count += 1
 
-    avail_addrs = get_available_ips(opts)
-
-    addr = avail_addrs[0]
-    out = f"{addr.exploded}"
-    if isinstance(addr, ipaddress.IPv4Address): 
-        out += "/32"
+        peer_addresses = f"{opts.adresses[0]}"
+        for ad in opts.addresses[1:]:
+            peer_addresses += f", {ad}"
     else:
-        out += "/128"
-    for addr in avail_addrs[1:]:
-        out += f", {addr.exploded}"
+        avail_addrs = get_available_ips(opts)
 
-        if isinstance(addr, ipaddress.IPv4Address): 
-            out += "/32"
-        else:
-            out += "/128"
+        count = 0
+        for net, addr in avail_addrs.items():
+            if count > 0:
+                out += ", "
+            out += f"{addr.exploded}/{net.prefixlen}"
+            count += 1
 
     return out
-
 
 
 def add_peer(opts: Namespace):
@@ -383,17 +651,6 @@ def add_peer(opts: Namespace):
     peer_public_key = get_public_key(opts, peer_private_key)
 
     # get address assignments for peer
-    if len(opts.addresses) > 0:
-        peer_addresses = f"{opts.adresses[0]}"
-        for ad in opts.addresses[1:]:
-            peer_addresses += f", {ad}"
-    else:
-        peer_addresses = gen_peer_addresses(opts)
-
-    peer_allowed_ips = peer_addresses
-    if len(opts.allowed_ips) > 1:
-        for ap in opts.allowed_ips[1:]:
-            peer_allowed_ips += f", {ap}"
 
     # generate peer config
     peer_config_template = f"""
@@ -422,28 +679,59 @@ def delete_peer(opts: Namespace):
 def wg_quick_save_ifc(opts: Namespace):
     subprocess.check_call(["wg-quick", "save", opts.interface_name])
 
+
+def load_config_file(ctx: AppContext) -> Dict:
+    """
+    """
+    LOG.debug("loading config file")
+    if os.path.exists(ctx.config_file_path):
+        stream = open(ctx.config_file_path, "r")
+        doc = yaml.load(stream)
+        stream.close()
+    else:
+        doc = {"interfaces": []}
+    return doc
+
+def save_config_file(ctx: AppContext, config: Config):
+    """
+    """
+    LOG.debug("saving config file")
+    with open(ctx.config_file_path, 'w') as fd:
+        data = dict_from_config(config)
+        out = yaml.dump(data)
+        fd.write(out)
+
+
 def main() -> int:
-    opts: Namespace = parse_args()
-    if opts.verbose is True:
+    """
+    """
+    ctx: AppContext = parse_args()
+    if ctx.verbose is True:
         LOG.setLevel(logging.DEBUG)
-    if opts.quiet is True:
+    if ctx.quiet is True:
         LOG.setLevel(logging.WARN)
+ 
+    LOG.debug("command=%s", ctx.command)
 
-    LOG.debug("command=%s", opts.command)
+    config_doc = load_config_file(ctx)
+    config: Config = config_from_dict(config_doc)
 
-    if opts.command == "create-ifc":
-        create_interface(opts)
-    elif opts.command == "del-ifc":
-        delete_interface(opts)
-    elif opts.command == "add-peer":
-        add_peer(opts)
-    elif opts.command == "del-peer":
-        delete_peer(opts)
-    elif opts.command == "save-ifc":
-        wg_quick_save_ifc(opts)
+    if ctx.command == Command.CREATE_INTERFACE:
+        config =create_interface(ctx, config)
+    elif ctx.command == Command.DELETE_INTERFACE:
+        config = delete_interface(ctx, config)
+    elif ctx.command == Command.ADD_PEER:
+        config = add_peer(ctx, config)
+    elif ctx.command == Command.DELETE_PEER:
+        config = delete_peer(ctx, config)
+    elif ctx.command == Command.SAVE_INTERFACE:
+        config = wg_quick_save_ifc(ctx, config)
     else:
         pass
     
+    save_config_file(ctx, config)
+
+
     return 0
 
 
